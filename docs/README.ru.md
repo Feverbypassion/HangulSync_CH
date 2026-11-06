@@ -24,8 +24,9 @@ HangulSync — приложение для строки меню macOS.
 - **Автоматическое обнаружение**
   - Одна сеть: обнаружение через **Bonjour** (вблизи — также AWDL P2P Wi-Fi)
   - Разные сети:
-    если запущен **[Tailscale](https://tailscale.com)**,
-    узлы того же tailnet проверяются каждые 30 секунд
+    если **[Tailscale](https://tailscale.com)** уже включён на обоих Mac,
+    подключённые Mac обмениваются адресами Tailscale и соединяются напрямую
+    (HangulSync никогда не запускает Tailscale; это можно отключить в настройках)
 - **Подбор по языку**
   если такого же метода ввода нет,
   используется метод для того же языка
@@ -51,14 +52,14 @@ HangulSync — приложение для строки меню macOS.
 
 > Сборка не нужна.
 > скачайте свежий `HangulSync.zip` из
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest) и поместите в
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest) и поместите в
 > `/Applications`.
 > При первом запуске нажмите правой кнопкой и выберите **Открыть**.
 
 Можно просто скопировать собранный `HangulSync.app`.
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

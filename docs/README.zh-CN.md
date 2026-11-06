@@ -24,8 +24,9 @@ HangulSync 是一款 macOS 菜单栏应用。
 - **自动发现**
   - 同一网络:通过 **Bonjour** 自动发现(近距离支持 AWDL 点对点 Wi-Fi)
   - 不同网络：
-    若 **[Tailscale](https://tailscale.com)** 正在运行，
-    每 30 秒检查一次同一 tailnet 中的设备
+    若两台 Mac 都已开启 **[Tailscale](https://tailscale.com)**，
+    已配对的 Mac 会交换 Tailscale 地址并直接连接
+    （HangulSync 不会启动 Tailscale，可在设置中关闭）
 - **按语言替代**
   对方 Mac 没有相同输入法时，使用相同语言的输入法
 - **防循环**
@@ -46,14 +47,14 @@ HangulSync 是一款 macOS 菜单栏应用。
 ## 安装(两台 Mac 都需要)
 
 > 无需编译。
-> 从 [Releases](https://github.com/catgarret/HangulSync/releases/latest)
+> 从 [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest)
 > 下载最新 `HangulSync.zip`，并放入 `/Applications`。
 > 首次启动时右键点击应用，然后选择 **打开**。
 
 也可以直接拷贝已构建的 `HangulSync.app`。
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

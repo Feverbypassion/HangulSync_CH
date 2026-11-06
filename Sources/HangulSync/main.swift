@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var peersSection: NSStackView?
     private lazy var loginSwitch = makeSwitch(#selector(toggleLogin))
     private lazy var remoteOnlySwitch = makeSwitch(#selector(toggleRemoteOnly))
+    private lazy var tailscaleSwitch = makeSwitch(#selector(toggleTailscalePath))
     private lazy var dockSwitch = makeSwitch(#selector(toggleDock))
 
     private let contentWidth: CGFloat = 360
@@ -276,6 +277,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let optionsCard = makeCard([
             settingRow(title: L10n.t(.launchAtLogin), control: loginSwitch),
             settingRow(title: L10n.t(.onlyDuringRemote), control: remoteOnlySwitch),
+            settingRow(
+                title: L10n.t(.useTailscalePath),
+                subtitle: L10n.t(.useTailscalePathHint),
+                control: tailscaleSwitch
+            ),
             settingRow(title: L10n.t(.showInDock), subtitle: L10n.t(.dockHint), control: dockSwitch),
         ], gap: 14)
 
@@ -494,6 +500,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
 
         remoteOnlySwitch.state = engine.onlyDuringRemote ? .on : .off
+        tailscaleSwitch.state = engine.useTailscalePath ? .on : .off
         dockSwitch.state = showInDock ? .on : .off
         if #available(macOS 13.0, *) {
             loginSwitch.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
@@ -650,6 +657,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         refresh()
     }
 
+    @objc private func toggleTailscalePath() {
+        engine.useTailscalePath.toggle()
+        refresh()
+    }
+
     @objc private func toggleDock() {
         showInDock.toggle()
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
@@ -663,7 +675,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     @objc private func openGitHub() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/catgarret/HangulSync")!)
+        NSWorkspace.shared.open(URL(string: "https://github.com/Feverbypassion/HangulSync_CH")!)
     }
 
     @objc private func openHomepage() {

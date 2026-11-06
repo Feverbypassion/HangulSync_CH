@@ -17,7 +17,9 @@ struct PeerInventory {
 }
 
 /// 입력 소스 변경 감지 → 피어 전파, 피어 메시지 수신 → 로컬 적용.
-/// 피어 경로: ① Bonjour(같은 네트워크/AWDL) ② Tailscale
+/// 피어 경로: ① Bonjour(같은 네트워크/AWDL) ② Tailscale ③ 수신 연결 ④ 암호화 릴레이
+/// Tailscale은 사용자가 이미 켜 둔 경우에만 쓰는 경로다. HangulSync는 Tailscale의 GUI·CLI·
+/// 시스템 확장 중 어느 것도 실행하지 않고, 내 Mac의 인터페이스 주소만 읽어 페어링된 Mac과 교환한다.
 /// 기본적으로 원격 데스크탑 뷰어가 사용 중일 때만 동기화가 활성화된다.
 final class SyncEngine {
 
@@ -45,7 +47,10 @@ final class SyncEngine {
     private static let trustedOriginsDefaults = "TrustedDeviceIDs"
     private static let peerPublicKeysDefaults = "TrustedPeerPublicKeys"
     private static let tailscaleIPsDefaults = "TrustedPeerTailscaleIPs"
+    private static let useTailscaleDefaults = "UseTailscalePath"
     private static let pairingDuration: TimeInterval = 120
+    /// 시작 직후 릴레이 구독이 자리 잡을 시간을 준 뒤 주소를 알린다(응답을 놓치지 않도록).
+    private static let addressAnnouncementDelay: TimeInterval = 3
 
     let instanceID: String
     let serviceName: String
@@ -62,7 +67,11 @@ final class SyncEngine {
     private var trustedConnectionKeys: Set<String> = []         // netQueue에서만 접근
     private var trustedOrigins: Set<String> = []                 // netQueue에서만 접근
     private var peerPublicKeys: [String: String] = [:]           // netQueue에서만 접근
-    private var tailscaleIPsByOrigin: [String: String] = [:]     // netQueue에서만 접근
+    private var tailscaleIPsByOrigin: [String: String] = [:]     // netQueue에서만 접근 (상대가 알려 준 주소)
+    private var localTailscaleAddresses: [String] = []           // netQueue에서만 접근 (토글이 꺼져 있으면 빈 목록)
+    private var tailscalePathAllowed = true                      // netQueue에서만 접근 (useTailscalePath 사본)
+    private var addressRepliesByOrigin: [String: Date] = [:]     // netQueue에서만 접근
+    private let pathMonitor = NWPathMonitor()
     private var pendingApprovalOrigins: Set<String> = []         // netQueue에서만 접근
     private var localRemoteApprovals: [String: (key: String, persist: Bool, name: String)] = [:]
     private var remoteApprovedOrigins: Set<String> = []
@@ -84,12 +93,35 @@ final class SyncEngine {
 
     let hostName = Host.current().localizedName ?? "Mac"
 
-    var enabled = true { didSet { onStateChange?() } }
+    var enabled = true {
+        didSet {
+            onStateChange?()
+            // 일시정지 중에는 상대의 주소 알림을 거부했으므로, 재개하면 다시 주고받는다.
+            if enabled, !oldValue {
+                netQueue.async { self.announceAddresses(wantsReply: true) }
+            }
+        }
+    }
 
     /// true(기본): 원격 데스크탑 뷰어 사용 중일 때만 동기화
     var onlyDuringRemote: Bool {
         didSet {
             UserDefaults.standard.set(onlyDuringRemote, forKey: Self.onlyRemoteDefaults)
+            onStateChange?()
+        }
+    }
+
+    /// true(기본): 두 Mac에서 Tailscale이 이미 켜져 있으면 Tailscale 주소로 직접 연결한다.
+    /// false이면 내 Tailscale 주소를 빈 목록으로 알리고 Tailscale 경로를 쓰지 않는다.
+    /// 어느 쪽이든 HangulSync가 Tailscale을 실행하지는 않는다.
+    var useTailscalePath: Bool {
+        didSet {
+            UserDefaults.standard.set(useTailscalePath, forKey: Self.useTailscaleDefaults)
+            let allowed = useTailscalePath
+            netQueue.async {
+                self.tailscalePathAllowed = allowed
+                self.refreshLocalTailscaleAddresses()
+            }
             onStateChange?()
         }
     }
@@ -128,14 +160,21 @@ final class SyncEngine {
         self.serviceName = "\(host)-\(deviceID.prefix(8))"
         self.peerPublicKeys = defaults.dictionary(forKey: Self.peerPublicKeysDefaults)?
             .compactMapValues { $0 as? String } ?? [:]
-        self.tailscaleIPsByOrigin = defaults.dictionary(forKey: Self.tailscaleIPsDefaults)?
-            .compactMapValues { $0 as? String } ?? [:]
+        // 계속 신뢰하는 Mac의 주소만, Tailscale 대역인 것만 이어서 쓴다.
+        let savedPublicKeys = self.peerPublicKeys
+        self.tailscaleIPsByOrigin = (defaults.dictionary(forKey: Self.tailscaleIPsDefaults) ?? [:])
+            .compactMapValues { ($0 as? String).flatMap(ProtocolSecurity.tailscaleAddress) }
+            .filter { savedPublicKeys[$0.key] != nil }
         self.trustedOrigins = Set(self.peerPublicKeys.keys)
         if defaults.object(forKey: Self.onlyRemoteDefaults) == nil {
             self.onlyDuringRemote = true
         } else {
             self.onlyDuringRemote = defaults.bool(forKey: Self.onlyRemoteDefaults)
         }
+        let useTailscale = defaults.object(forKey: Self.useTailscaleDefaults) == nil
+            || defaults.bool(forKey: Self.useTailscaleDefaults)
+        self.useTailscalePath = useTailscale
+        self.tailscalePathAllowed = useTailscale
     }
 
     func start() {
@@ -183,7 +222,15 @@ final class SyncEngine {
         observeViewerApps()
         startListener()
         startBonjourBrowser()
-        netQueue.async { self.connectSavedTailscalePeers() }
+        // 경로 감시보다 먼저 큐에 넣어, 첫 경로 이벤트 전에 현재 주소가 반영되게 한다.
+        netQueue.async {
+            self.refreshLocalTailscaleAddresses(announceChange: false)
+            self.connectKnownTailscalePeers()
+        }
+        startPathMonitor()
+        netQueue.asyncAfter(deadline: .now() + Self.addressAnnouncementDelay) {
+            self.announceAddresses(wantsReply: true)
+        }
         startTimer()
     }
 
@@ -297,9 +344,12 @@ final class SyncEngine {
         } else {
             originByKey[key] = msg.origin
         }
-        if trustedOrigins.contains(msg.origin) {
-            trustedConnectionKeys.insert(key)
-            rememberTailscaleIP(from: key, for: msg.origin)
+        if trustedOrigins.contains(msg.origin),
+           trustedConnectionKeys.insert(key).inserted,
+           !key.hasPrefix("relay-") {
+            // 새 직접 연결이 신뢰되면 그 연결로 내 주소를 알린다. 릴레이가 막혀 있어도
+            // 같은 네트워크에서 만난 Mac끼리 Tailscale 주소를 배워 두게 된다.
+            sendAddresses(onKey: key)
         }
         guard ProtocolSecurity.permits(
             msg.kind,
@@ -353,6 +403,17 @@ final class SyncEngine {
                 InputSourceManager.apply(id: sourceID, isKorean: msg.isKorean ?? false)
                 self.onStateChange?()
             }
+        case .address:
+            applyTailscaleAddresses(msg.addresses ?? [], from: msg.origin)
+            let now = Date()
+            if AddressReplyPolicy.shouldReply(
+                wantsReply: msg.wantsReply == true,
+                lastReply: addressRepliesByOrigin[msg.origin],
+                now: now
+            ) {
+                addressRepliesByOrigin[msg.origin] = now
+                sendAddresses(toOrigin: msg.origin, wantsReply: false)
+            }
         }
     }
 
@@ -361,14 +422,8 @@ final class SyncEngine {
         netQueue.async {
             self.pairingUntil = Date().addingTimeInterval(Self.pairingDuration)
             self.pairingHelloRepliedOrigins.removeAll()
-            let waitingTailscaleKeys = self.connections.compactMap { key, connection -> String? in
-                guard key.hasPrefix("ts-"), case .waiting = connection.state else { return nil }
-                return key
-            }
-            for key in waitingTailscaleKeys {
-                self.connections.removeValue(forKey: key)?.cancel()
-            }
-            self.runTailscaleDiscovery(includeOfflineMacs: true)
+            // 자동으로 찾기는 같은 네트워크(Bonjour)에서만 동작한다.
+            // 다른 네트워크의 Mac은 초대 코드로 페어링하고, 그 뒤 Tailscale 주소를 교환한다.
             self.push(
                 SyncMessage(
                     origin: self.instanceID,
@@ -407,6 +462,7 @@ final class SyncEngine {
             self.trustedOrigins.remove(id)
             self.peerPublicKeys.removeValue(forKey: id)
             self.tailscaleIPsByOrigin.removeValue(forKey: id)
+            self.addressRepliesByOrigin.removeValue(forKey: id)
             self.persistTrustedPeers()
             self.relay.remove(peerID: id)
             for (key, origin) in self.originByKey where origin == id {
@@ -422,6 +478,7 @@ final class SyncEngine {
             self.trustedOrigins.removeAll()
             self.peerPublicKeys.removeAll()
             self.tailscaleIPsByOrigin.removeAll()
+            self.addressRepliesByOrigin.removeAll()
             self.persistTrustedPeers()
             for peerID in peerIDs { self.relay.remove(peerID: peerID) }
             for connection in self.connections.values { connection.cancel() }
@@ -485,9 +542,6 @@ final class SyncEngine {
                     self.trustedOrigins.insert(origin)
                     if persist {
                         self.peerPublicKeys[origin] = publicKey
-                        if let key = matchingKeys.first(where: { $0.hasPrefix("ts-") }) {
-                            self.rememberTailscaleIP(from: key, for: origin)
-                        }
                         self.persistTrustedPeers()
                     }
                     DispatchQueue.main.async {
@@ -497,6 +551,9 @@ final class SyncEngine {
                         self.relay.configure(peerID: origin, sharedSecret: secret)
                     }
                     self.trustedConnectionKeys.formUnion(matchingKeys)
+                    // 상대가 아직 승인하지 않았다면 이 알림은 버려지지만, 상대가 승인하면서
+                    // 응답을 요청하므로 결국 양쪽 모두 주소를 받게 된다.
+                    self.sendAddresses(toOrigin: origin, wantsReply: true)
                     self.recountPeers()
                     DispatchQueue.main.async {
                         self.onPairingComplete?()
@@ -532,6 +589,10 @@ final class SyncEngine {
         }
         if let secret = identity.sharedSecret(with: approval.key) {
             relay.configure(peerID: origin, sharedSecret: secret)
+        }
+        // 방금 만든 릴레이 구독이 자리 잡은 뒤에 알려야 상대의 응답을 놓치지 않는다.
+        netQueue.asyncAfter(deadline: .now() + Self.addressAnnouncementDelay) {
+            self.sendAddresses(toOrigin: origin, wantsReply: true)
         }
         recountPeers()
         DispatchQueue.main.async {
@@ -608,14 +669,18 @@ final class SyncEngine {
         }
     }
 
-    // MARK: - 주기 작업 (20초): Tailscale 폴링·재연결·세션 유지·만료 정리
+    // MARK: - 주기 작업 (30초): Tailscale 주소 확인·재연결·세션 유지·만료 정리
 
     private func startTimer() {
         let tick: () -> Void = { [weak self] in
             guard let self else { return }
             self.updateViewerState() // 뷰어 실행 상태 안전망 재확인
-            self.pollTailscale()
-            self.netQueue.async { self.connectBonjourPeers() }
+            self.netQueue.async {
+                // 경로 변경 이벤트를 놓쳐도 주소 변화를 잡는 보조 확인(인터페이스 조회 1회)
+                self.refreshLocalTailscaleAddresses()
+                self.connectBonjourPeers()
+                self.connectKnownTailscalePeers()
+            }
             // 세션 신호 유지 재전송
             if self.localViewerActive,
                Date().timeIntervalSince(self.lastSessionBroadcast) > Self.sessionRefresh {
@@ -635,49 +700,40 @@ final class SyncEngine {
         retryTimer = t
     }
 
-    // MARK: - Tailscale 탐색 (외부망)
+    // MARK: - Tailscale 경로 (이미 켜져 있을 때만 사용)
+    // Tailscale 실행 파일은 호출하지 않는다. 내 주소는 인터페이스에서 읽고,
+    // 상대 주소는 페어링된 Mac에게서 암호화 채널(.address 메시지)로만 받는다.
 
-    private func pollTailscale() {
-        // 이미 Tailscale 경로로 연결돼 있으면 프로세스 실행 자체를 생략 (외부 프로세스 스폰 최소화)
-        netQueue.async { [weak self] in
+    /// 네트워크 경로가 바뀔 때(Tailscale 연결·해제 포함) 내 주소를 다시 확인한다.
+    private func startPathMonitor() {
+        pathMonitor.pathUpdateHandler = { [weak self] _ in
             guard let self else { return }
-            let hasReadyTS = self.connections.contains { key, conn in
-                guard key.hasPrefix("ts-") else { return false }
-                if case .ready = conn.state { return true } else { return false }
-            }
-            if hasReadyTS { return }
-            self.runTailscaleDiscovery()
-        }
-    }
-
-    private func runTailscaleDiscovery(includeOfflineMacs: Bool = false) {
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            guard let self, let json = Self.runTailscaleStatus() else { return }
-            guard let obj = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
-                  let peers = obj["Peer"] as? [String: [String: Any]] else { return }
-            for (_, peer) in peers {
-                let online = (peer["Online"] as? Bool) == true
-                let operatingSystem = (peer["OS"] as? String)?.lowercased()
-                guard (online || (includeOfflineMacs && operatingSystem == "macos")),
-                      let ips = peer["TailscaleIPs"] as? [String],
-                      let ip = ips.first(where: { !$0.contains(":") }) ?? ips.first else { continue }
-                let key = "ts-\(ip)"
-                self.netQueue.async {
-                    guard self.connections[key] == nil else { return }
-                    let conn = NWConnection(
-                        host: NWEndpoint.Host(ip),
-                        port: NWEndpoint.Port(rawValue: Self.port)!,
-                        using: Self.tunedTCPParams()
-                    )
-                    self.adopt(conn, key: key)
-                }
+            self.refreshLocalTailscaleAddresses()
+            // 경로 이벤트보다 인터페이스에 주소가 늦게 붙을 수 있어 한 번 더 확인한다.
+            self.netQueue.asyncAfter(deadline: .now() + 2) { [weak self] in
+                self?.refreshLocalTailscaleAddresses()
             }
         }
+        pathMonitor.start(queue: netQueue)
     }
 
-    /// Tailscale 상태의 Online 값이 늦게 갱신돼도 이미 신뢰한 Mac에는 바로 재연결한다.
-    private func connectSavedTailscalePeers() {
-        for ip in Set(tailscaleIPsByOrigin.values) {
+    /// netQueue에서 호출. 내 Tailscale 주소가 바뀌었을 때만 알림과 연결 정리를 한다.
+    private func refreshLocalTailscaleAddresses(announceChange: Bool = true) {
+        let detected = tailscalePathAllowed ? TailscaleAddress.current() : []
+        guard detected != localTailscaleAddresses else { return }
+        localTailscaleAddresses = detected
+        NSLog("HangulSync: Tailscale 경로 \(detected.isEmpty ? "사용 안 함" : "사용 가능(주소 \(detected.count)개)")")
+        if detected.isEmpty { cancelTailscaleConnections() }
+        if announceChange { announceAddresses(wantsReply: true) }
+        connectKnownTailscalePeers()
+    }
+
+    /// netQueue에서 호출. 페어링된 Mac이 알려 준 Tailscale 주소로 직접 연결한다.
+    /// 내 Mac에 Tailscale 주소가 없으면(꺼짐·미설치·토글 끔) 시도하지 않는다.
+    private func connectKnownTailscalePeers() {
+        guard !localTailscaleAddresses.isEmpty else { return }
+        for (origin, ip) in tailscaleIPsByOrigin where trustedOrigins.contains(origin) {
+            guard !localTailscaleAddresses.contains(ip) else { continue }
             let key = "ts-\(ip)"
             guard connections[key] == nil else { continue }
             let connection = NWConnection(
@@ -689,39 +745,64 @@ final class SyncEngine {
         }
     }
 
-    /// 성공한 직접 경로만 저장한다. 사용자가 신뢰를 해제하면 함께 삭제된다.
-    private func rememberTailscaleIP(from connectionKey: String, for origin: String) {
-        guard connectionKey.hasPrefix("ts-") else { return }
-        let ip = String(connectionKey.dropFirst(3))
-        guard !ip.isEmpty, tailscaleIPsByOrigin[origin] != ip else { return }
-        tailscaleIPsByOrigin[origin] = ip
-        UserDefaults.standard.set(tailscaleIPsByOrigin, forKey: Self.tailscaleIPsDefaults)
+    /// netQueue에서 호출. 연결 정리는 상태 콜백(.cancelled)에 맡겨 신뢰 표시가 함께 지워지게 한다.
+    private func cancelTailscaleConnections(for origin: String? = nil) {
+        let savedKey = origin.flatMap { tailscaleIPsByOrigin[$0] }.map { "ts-\($0)" }
+        for (key, connection) in connections where key.hasPrefix("ts-") {
+            if let origin, originByKey[key] != origin, key != savedKey { continue }
+            connection.cancel()
+        }
     }
 
-    /// tailscale CLI 위치를 순서대로 탐색해 `status --json` 실행
-    private static func runTailscaleStatus() -> Data? {
-        let candidates = [
-            "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-            "/opt/homebrew/bin/tailscale",
-            "/usr/local/bin/tailscale",
-        ]
-        guard let bin = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-            return nil
+    /// netQueue에서 호출. 상대가 알린 주소를 저장하고, 바뀌었으면 기존 Tailscale 연결을 정리한다.
+    /// 빈 목록이면 상대의 Tailscale이 꺼졌거나 토글이 꺼진 것이므로 그 Mac으로 시도하지 않는다.
+    private func applyTailscaleAddresses(_ addresses: [String], from origin: String) {
+        guard trustedOrigins.contains(origin) else { return }
+        let next = TailscaleAddress.preferred(addresses)
+        if tailscaleIPsByOrigin[origin] != next {
+            cancelTailscaleConnections(for: origin)
+            tailscaleIPsByOrigin[origin] = next
+            UserDefaults.standard.set(tailscaleIPsByOrigin, forKey: Self.tailscaleIPsDefaults)
         }
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: bin)
-        proc.arguments = ["status", "--json"]
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = Pipe()
-        do {
-            try proc.run()
-        } catch {
-            return nil
+        connectKnownTailscalePeers()
+    }
+
+    private func addressMessage(wantsReply: Bool) -> SyncMessage {
+        SyncMessage(
+            origin: instanceID,
+            kind: .address,
+            addresses: localTailscaleAddresses,
+            wantsReply: wantsReply
+        )
+    }
+
+    /// netQueue에서 호출. 페어링된 모든 Mac에 알린다(직접 연결 우선, 없으면 릴레이).
+    private func announceAddresses(wantsReply: Bool) {
+        push(addressMessage(wantsReply: wantsReply))
+    }
+
+    /// netQueue에서 호출. 한 Mac에만 알린다(직접 연결 우선, 없으면 그 Mac의 릴레이).
+    private func sendAddresses(toOrigin origin: String, wantsReply: Bool) {
+        guard trustedOrigins.contains(origin) else { return }
+        let message = addressMessage(wantsReply: wantsReply)
+        guard var data = try? JSONEncoder().encode(message) else { return }
+        data.append(0x0A)
+        var sentDirectly = false
+        for (key, connection) in connections where originByKey[key] == origin {
+            guard case .ready = connection.state, trustedConnectionKeys.contains(key) else { continue }
+            connection.send(content: data, completion: .contentProcessed { _ in })
+            sentDirectly = true
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        proc.waitUntilExit()
-        return proc.terminationStatus == 0 ? data : nil
+        if !sentDirectly { relay.publish(message, to: origin) }
+    }
+
+    /// netQueue에서 호출. 방금 신뢰된 직접 연결 하나로만 알린다(응답 요청 없음).
+    private func sendAddresses(onKey key: String) {
+        guard let connection = connections[key], case .ready = connection.state,
+              var data = try? JSONEncoder().encode(addressMessage(wantsReply: false))
+        else { return }
+        data.append(0x0A)
+        connection.send(content: data, completion: .contentProcessed { _ in })
     }
 
     // MARK: - 연결 관리

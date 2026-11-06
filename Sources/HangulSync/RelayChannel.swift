@@ -102,7 +102,8 @@ final class RelayChannel: NSObject, URLSessionDataDelegate {
         task?.cancel()
     }
 
-    private func publish(_ message: SyncMessage, to peerID: String) {
+    /// 한 Mac에게만 보낸다(주소 알림 응답처럼 대상이 정해진 메시지용).
+    func publish(_ message: SyncMessage, to peerID: String) {
         lock.lock()
         guard var peer = peers[peerID] else { lock.unlock(); return }
         peer.sequence &+= 1

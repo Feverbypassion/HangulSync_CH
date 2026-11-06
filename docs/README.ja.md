@@ -23,8 +23,9 @@ HangulSync は、リモートデスクトップ使用中に起こるハングル
 - **自動検出**
   - 同一ネットワーク: **Bonjour** で自動検出(近距離では AWDL P2P Wi-Fi も利用)
   - 別ネットワーク:
-    **[Tailscale](https://tailscale.com)** が起動していれば、
-    同じ tailnet のピアを 30 秒ごとに確認
+    両方の Mac で **[Tailscale](https://tailscale.com)** がすでにオンなら、
+    ペアリング済みの Mac 同士が Tailscale アドレスを交換して直接接続
+    (HangulSync が Tailscale を起動することはなく、設定でオフにできます)
 - **言語による代替**
   同じ入力メソッドがない場合は同じ言語の入力メソッドを使用
 - **ループ防止**
@@ -45,14 +46,14 @@ HangulSync は、リモートデスクトップ使用中に起こるハングル
 ## インストール(両方の Mac に)
 
 > ビルドは不要です。
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest) から最新の `HangulSync.zip`
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest) から最新の `HangulSync.zip`
 > を取得して `/Applications` に移動します。
 > 初回起動時は右クリックして **開く** を選択します。
 
 ビルド済みの `HangulSync.app` をコピーしても構いません。
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

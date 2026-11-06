@@ -28,8 +28,9 @@ HangulSync เป็นแอปเมนูบาร์สำหรับ macOS
     ค้นหาผ่าน **Bonjour**
     และรองรับ AWDL P2P Wi-Fi เมื่ออยู่ใกล้กัน
   - คนละเครือข่าย:
-    หาก **[Tailscale](https://tailscale.com)** ทำงานอยู่
-    จะตรวจหาอุปกรณ์ใน tailnet เดียวกันทุก 30 วินาที
+    หาก **[Tailscale](https://tailscale.com)** เปิดอยู่แล้วบน Mac ทั้งสองเครื่อง
+    Mac ที่จับคู่แล้วจะแลกเปลี่ยนที่อยู่ Tailscale และเชื่อมต่อโดยตรง
+    (HangulSync จะไม่เปิด Tailscale เอง และปิดได้ในการตั้งค่า)
 - **เลือกตามภาษา**
   หากไม่มีวิธีป้อนข้อมูลเดียวกัน
   จะใช้วิธีป้อนข้อมูลสำหรับภาษาเดียวกัน
@@ -57,13 +58,13 @@ HangulSync เป็นแอปเมนูบาร์สำหรับ macOS
 
 > ไม่ต้อง build
 > ดาวน์โหลด `HangulSync.zip` ล่าสุดจาก
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest) แล้ววางใน `/Applications`
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest) แล้ววางใน `/Applications`
 > (เปิดครั้งแรก: คลิกขวา → เปิด)
 
 สามารถคัดลอก `HangulSync.app` ที่ build แล้วไปใช้ได้เลย
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

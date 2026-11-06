@@ -64,12 +64,13 @@ enum EndToEndSmoke {
         let firstRelay = RelayChannel(localID: firstIdentity.deviceID)
         let secondRelay = RelayChannel(localID: secondIdentity.deviceID)
         let relayDone = DispatchSemaphore(value: 0)
+        let addressDone = DispatchSemaphore(value: 0)
         secondRelay.onMessage = { message, peerID in
             guard peerID == firstIdentity.deviceID,
-                  message.origin == firstIdentity.deviceID,
-                  message.sourceID == "com.apple.keylayout.ABC"
+                  message.origin == firstIdentity.deviceID
             else { return }
-            relayDone.signal()
+            if message.sourceID == "com.apple.keylayout.ABC" { relayDone.signal() }
+            if message.kind == .address, message.addresses == ["100.90.1.2"] { addressDone.signal() }
         }
         firstRelay.configure(peerID: secondIdentity.deviceID, sharedSecret: firstSecret)
         secondRelay.configure(peerID: firstIdentity.deviceID, sharedSecret: secondSecret)
@@ -85,6 +86,18 @@ enum EndToEndSmoke {
         )
         guard relayDone.wait(timeout: .now() + 15) == .success else {
             fatalError("ENCRYPTED_RELAY_FAILED")
+        }
+        firstRelay.publish(
+            SyncMessage(
+                origin: firstIdentity.deviceID,
+                kind: .address,
+                addresses: ["100.90.1.2"],
+                wantsReply: false
+            ),
+            to: secondIdentity.deviceID
+        )
+        guard addressDone.wait(timeout: .now() + 15) == .success else {
+            fatalError("ADDRESS_RELAY_FAILED")
         }
         print("END_TO_END_PASS")
     }

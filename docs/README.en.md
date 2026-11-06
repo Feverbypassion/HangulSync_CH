@@ -33,8 +33,9 @@ HangulSync reduces these problems by keeping the input sources aligned.
 - **Automatic discovery**
   - Same network: discovered via **Bonjour** (including AWDL peer-to-peer Wi-Fi when nearby)
   - Different networks:
-    when **[Tailscale](https://tailscale.com)** is running,
-    peers on the same tailnet are checked every 30 seconds
+    when **[Tailscale](https://tailscale.com)** is already on for both Macs,
+    paired Macs exchange Tailscale addresses and connect directly
+    (HangulSync never starts Tailscale; you can turn this off in Settings)
 - **Language fallback**
   uses an input method for the same language when the exact input method is unavailable
 - **Loop-safe**
@@ -55,14 +56,14 @@ HangulSync reduces these problems by keeping the input sources aligned.
 ## Install
 
 > To install without building, download the latest `HangulSync.zip` from
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest)
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest)
 > and move it to `/Applications`.
 > On first launch, right-click the app and select **Open**.
 
 Do this on **both** Macs (a built `HangulSync.app` can also just be copied over):
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```
@@ -77,9 +78,11 @@ Requires Xcode Command Line Tools (`xcode-select --install`).
 1. Run HangulSync on both Macs.
 2. Click **Find Automatically** on **only one Mac**.
    On the other Mac, just leave HangulSync running; do not click a button or keep a window open.
+   Find Automatically only finds Macs on the same network.
 3. The searching Mac shows progress,
    and a connection approval appears automatically on the other Mac.
-4. If discovery fails, select **Create Invite** on either Mac.
+4. If discovery fails or the Macs are on different networks,
+   select **Create Invite** on either Mac.
    Paste the copied invite into **Enter Invite** on the other Mac within two minutes.
 5. Confirm that both Macs show the same six-digit code, then approve on both.
    Keep **Always trust this device** enabled to skip confirmation in the future.
