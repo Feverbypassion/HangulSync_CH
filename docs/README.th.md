@@ -57,13 +57,13 @@ HangulSync เป็นแอปเมนูบาร์สำหรับ macOS
 
 > ไม่ต้อง build
 > ดาวน์โหลด `HangulSync.zip` ล่าสุดจาก
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest) แล้ววางใน `/Applications`
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest) แล้ววางใน `/Applications`
 > (เปิดครั้งแรก: คลิกขวา → เปิด)
 
 สามารถคัดลอก `HangulSync.app` ที่ build แล้วไปใช้ได้เลย
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

@@ -53,14 +53,14 @@ HangulSync는 두 Mac의 입력 소스를 맞춰 이런 문제를 줄입니다.
 ## 설치 (두 Mac 모두)
 
 > 빌드 없이 사용하려면
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest)에서
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest)에서
 > 최신 `HangulSync.zip`을 받아 `/Applications`에 넣으세요.
 > 첫 실행 시 앱을 우클릭한 뒤 **열기**를 선택하세요.
 
 빌드된 `HangulSync.app`을 복사해도 됩니다.
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

@@ -45,14 +45,14 @@ HangulSync は、リモートデスクトップ使用中に起こるハングル
 ## インストール(両方の Mac に)
 
 > ビルドは不要です。
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest) から最新の `HangulSync.zip`
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest) から最新の `HangulSync.zip`
 > を取得して `/Applications` に移動します。
 > 初回起動時は右クリックして **開く** を選択します。
 
 ビルド済みの `HangulSync.app` をコピーしても構いません。
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

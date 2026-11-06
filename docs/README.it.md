@@ -47,14 +47,14 @@ Tailscale può essere usato tra reti diverse.
 
 > Nessuna build necessaria.
 > scarica l'ultimo `HangulSync.zip` da
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest) e mettilo in
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest) e mettilo in
 > `/Applications`.
 > Al primo avvio, fai clic con il tasto destro e scegli **Apri**.
 
 È anche possibile copiare direttamente `HangulSync.app` già compilata.
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

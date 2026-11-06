@@ -73,7 +73,7 @@ echo "  ✅ 푸시 완료"
 if [ -z "$VERSION" ]; then
     echo "▸ 4/4 릴리즈 생략 (버전 인자 없음)"
     echo ""
-    echo "✅ 배포 완료: https://github.com/catgarret/HangulSync"
+    echo "✅ 배포 완료: https://github.com/Feverbypassion/HangulSync_CH"
     exit 0
 fi
 
@@ -88,5 +88,5 @@ git push origin "$VERSION"
 
 echo ""
 echo "✅ 완료! 1~2분 뒤 자동으로 릴리즈가 등록됩니다 (zip + 자동 작성된 릴리즈 노트):"
-echo "   https://github.com/catgarret/HangulSync/releases"
-echo "   진행 상황: https://github.com/catgarret/HangulSync/actions"
+echo "   https://github.com/Feverbypassion/HangulSync_CH/releases"
+echo "   진행 상황: https://github.com/Feverbypassion/HangulSync_CH/actions"

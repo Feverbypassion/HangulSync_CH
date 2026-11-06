@@ -46,14 +46,14 @@ HangulSync 是一款 macOS 選單列應用程式。
 ## 安裝(兩台 Mac 都需要)
 
 > 無需編譯。
-> 從 [Releases](https://github.com/catgarret/HangulSync/releases/latest)
+> 從 [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest)
 > 下載最新 `HangulSync.zip`，並放入 `/Applications`。
 > 首次啟動時按右鍵，然後選擇 **打開**。
 
 也可以直接複製已建置的 `HangulSync.app`。
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

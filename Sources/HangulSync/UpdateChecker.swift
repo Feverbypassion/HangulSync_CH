@@ -4,8 +4,8 @@ import Foundation
 /// 새 버전이 있으면 메뉴·설정 창에 업데이트 링크가 나타난다.
 final class UpdateChecker {
 
-    private static let releaseAPI = URL(string: "https://api.github.com/repos/catgarret/HangulSync/releases/latest")!
-    static let releasesPage = URL(string: "https://github.com/catgarret/HangulSync/releases/latest")!
+    private static let releaseAPI = URL(string: "https://api.github.com/repos/Feverbypassion/HangulSync_CH/releases/latest")!
+    static let releasesPage = URL(string: "https://github.com/Feverbypassion/HangulSync_CH/releases/latest")!
 
     private(set) var latestVersion: String? // 예: "1.0.2" (v 제거된 형태)
     private(set) var latestURL: URL?

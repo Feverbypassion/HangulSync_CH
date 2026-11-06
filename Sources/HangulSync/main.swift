@@ -663,7 +663,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     @objc private func openGitHub() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/catgarret/HangulSync")!)
+        NSWorkspace.shared.open(URL(string: "https://github.com/Feverbypassion/HangulSync_CH")!)
     }
 
     @objc private func openHomepage() {

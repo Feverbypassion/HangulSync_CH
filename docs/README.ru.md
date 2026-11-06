@@ -51,14 +51,14 @@ HangulSync — приложение для строки меню macOS.
 
 > Сборка не нужна.
 > скачайте свежий `HangulSync.zip` из
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest) и поместите в
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest) и поместите в
 > `/Applications`.
 > При первом запуске нажмите правой кнопкой и выберите **Открыть**.
 
 Можно просто скопировать собранный `HangulSync.app`.
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```

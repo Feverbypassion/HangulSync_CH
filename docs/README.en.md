@@ -55,14 +55,14 @@ HangulSync reduces these problems by keeping the input sources aligned.
 ## Install
 
 > To install without building, download the latest `HangulSync.zip` from
-> [Releases](https://github.com/catgarret/HangulSync/releases/latest)
+> [Releases](https://github.com/Feverbypassion/HangulSync_CH/releases/latest)
 > and move it to `/Applications`.
 > On first launch, right-click the app and select **Open**.
 
 Do this on **both** Macs (a built `HangulSync.app` can also just be copied over):
 
 ```bash
-git clone https://github.com/catgarret/HangulSync.git
+git clone https://github.com/Feverbypassion/HangulSync_CH.git
 cd HangulSync
 ./install.sh
 ```
