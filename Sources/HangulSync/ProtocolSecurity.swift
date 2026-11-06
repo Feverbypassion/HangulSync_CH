@@ -5,6 +5,9 @@ enum SyncMessageKind: String, Codable {
     case session
     case pair
     case hello
+    /// 페어링된 Mac에 내 Tailscale 주소를 알린다. 빈 목록은 "지금은 Tailscale 경로 없음"이다.
+    /// 이 값을 모르는 구버전은 메시지 전체를 해석하지 못해 버리므로 영향이 없다.
+    case address
 }
 
 /// Newline-delimited JSON message used on direct connections.
@@ -18,6 +21,8 @@ struct SyncMessage: Codable {
     var name: String? = nil
     var publicKey: String? = nil
     var pairingRequest: Bool? = nil
+    var addresses: [String]? = nil
+    var wantsReply: Bool? = nil
 }
 
 enum ProtocolSecurity {
@@ -27,6 +32,41 @@ enum ProtocolSecurity {
     static let maxNameLength = 100
     static let maxSourceIDLength = 256
     static let relayKeyLength = 32
+    static let maxAddressCount = 4
+
+    /// Tailscale이 기기에 배정하는 대역(IPv4 100.64.0.0/10, IPv6 fd7a:115c:a1e0::/48)의
+    /// 주소면 정규화한 문자열을, 아니면 nil을 돌려준다. Tailscale 자체 서비스 주소(quad100)는 뺀다.
+    /// 상대가 알려 준 주소를 이 대역으로 제한해, 임의의 내부망 호스트로 연결하게 만들 수 없게 한다.
+    static func tailscaleAddress(_ text: String) -> String? {
+        // Darwin의 inet_pton은 "%utun3" 같은 범위 표기도 받아들이므로 숫자 표기 문자만 허용한다.
+        guard !text.isEmpty, text.utf8.count <= Int(INET6_ADDRSTRLEN),
+              text.utf8.allSatisfy({ $0 == 0x2E || $0 == 0x3A || ($0 < 0x80 && Character(UnicodeScalar($0)).isHexDigit) })
+        else { return nil }
+        var ipv4 = in_addr()
+        if inet_pton(AF_INET, text, &ipv4) == 1 {
+            let bytes = withUnsafeBytes(of: &ipv4) { Array($0) }
+            guard bytes[0] == 100, bytes[1] & 0xC0 == 0x40,
+                  bytes != [100, 100, 100, 100] else { return nil }
+            return numericString(family: AF_INET, address: &ipv4)
+        }
+        var ipv6 = in6_addr()
+        if inet_pton(AF_INET6, text, &ipv6) == 1 {
+            let bytes = withUnsafeBytes(of: &ipv6) { Array($0) }
+            let quad100: [UInt8] = [0xfd, 0x7a, 0x11, 0x5c, 0xa1, 0xe0] + Array(repeating: 0, count: 9) + [0x53]
+            guard Array(bytes.prefix(6)) == [0xfd, 0x7a, 0x11, 0x5c, 0xa1, 0xe0],
+                  bytes != quad100 else { return nil }
+            return numericString(family: AF_INET6, address: &ipv6)
+        }
+        return nil
+    }
+
+    private static func numericString<Address>(family: Int32, address: inout Address) -> String? {
+        var buffer = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+        let converted = withUnsafePointer(to: &address) {
+            inet_ntop(family, $0, &buffer, socklen_t(buffer.count))
+        }
+        return converted == nil ? nil : String(cString: buffer)
+    }
 
     static func isValidRelayKey(_ key: String) -> Bool {
         guard key.utf8.count == relayKeyLength else { return false }
@@ -45,6 +85,10 @@ enum ProtocolSecurity {
         if let relayKey = message.relayKey, !isValidRelayKey(relayKey) { return false }
         if let publicKey = message.publicKey,
            publicKey.utf8.count > 64 || Data(base64Encoded: publicKey)?.count != 32 {
+            return false
+        }
+        // 주소 알림 필드는 .address 메시지에서만 허용한다.
+        if message.kind != .address, message.addresses != nil || message.wantsReply != nil {
             return false
         }
 
@@ -68,6 +112,15 @@ enum ProtocolSecurity {
                 && message.sourceID == nil && message.isKorean == nil
                 && message.sessionActive == nil && message.name == nil
                 && message.publicKey == nil && message.pairingRequest == nil
+        case .address:
+            guard let addresses = message.addresses, message.wantsReply != nil,
+                  addresses.count <= maxAddressCount,
+                  addresses.allSatisfy({ tailscaleAddress($0) != nil })
+            else { return false }
+            return message.sourceID == nil && message.isKorean == nil
+                && message.sessionActive == nil && message.relayKey == nil
+                && message.name == nil && message.publicKey == nil
+                && message.pairingRequest == nil
         }
     }
 

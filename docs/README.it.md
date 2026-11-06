@@ -24,8 +24,9 @@ Tailscale può essere usato tra reti diverse.
 - **Rilevamento automatico**
   - Stessa rete: rilevamento via **Bonjour** (con Wi-Fi P2P AWDL nelle vicinanze)
   - Reti diverse:
-    se **[Tailscale](https://tailscale.com)** è attivo,
-    i peer dello stesso tailnet vengono controllati ogni 30 secondi
+    se **[Tailscale](https://tailscale.com)** è già attivo su entrambi i Mac,
+    i Mac abbinati si scambiano gli indirizzi Tailscale e si connettono direttamente
+    (HangulSync non avvia mai Tailscale; puoi disattivarlo nelle Impostazioni)
 - **Alternativa per lingua**
   se lo stesso metodo di input non è disponibile, ne usa uno per la stessa lingua
 - **Anti-loop**

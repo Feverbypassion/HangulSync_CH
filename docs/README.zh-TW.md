@@ -24,8 +24,9 @@ HangulSync 是一款 macOS 選單列應用程式。
 - **自動探索**
   - 同一網路:透過 **Bonjour** 自動探索(近距離支援 AWDL 點對點 Wi-Fi)
   - 不同網路：
-    若 **[Tailscale](https://tailscale.com)** 正在執行，
-    每 30 秒檢查一次同一 tailnet 中的裝置
+    若兩台 Mac 都已開啟 **[Tailscale](https://tailscale.com)**，
+    已配對的 Mac 會交換 Tailscale 位址並直接連線
+    （HangulSync 不會啟動 Tailscale，可在設定中關閉）
 - **依語言替代**
   對方 Mac 沒有相同輸入法時，使用相同語言的輸入法
 - **防迴圈**
